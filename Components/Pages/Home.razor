@@ -1,0 +1,342 @@
+@page "/"
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<PageTitle>Bé Làm Toán - Học vui mỗi ngày</PageTitle>
+
+<div class="app-shell">
+    <header class="topbar">
+        <a class="brand" href="/" aria-label="Bé Làm Toán - Trang chủ">
+            <span class="brand-icon" aria-hidden="true">✿</span>
+            <span>Bé Làm Toán</span>
+        </a>
+        <span class="topbar-note"><span aria-hidden="true">🌈</span> Mỗi ngày một chút, giỏi toán thật nhanh!</span>
+    </header>
+
+    <main class="main-content">
+        <section class="welcome">
+            <div>
+                <p class="eyebrow">GÓC HỌC TẬP VUI VẺ</p>
+                <h1>Chào bạn nhỏ! <span aria-hidden="true">👋</span></h1>
+                <p class="welcome-text">Cùng giải những phép tính thú vị nhé!</p>
+            </div>
+            <div class="welcome-mascot" aria-hidden="true">🦊</div>
+        </section>
+
+        <div class="game-layout">
+            <section class="game-card" aria-labelledby="question-title">
+                <div class="game-card-top">
+                    <div>
+                        <span class="section-label">CÂU HỎI CỦA BẠN</span>
+                        <h2 id="question-title">Tính nhẩm nào!</h2>
+                    </div>
+                    <span class="question-badge">Câu @questionNumber</span>
+                </div>
+
+                <div class="problem" aria-label="@($"{firstNumber} {operation} {secondNumber} bằng bao nhiêu?")">
+                    <span class="number-tile">@firstNumber</span>
+                    <span class="operator">@operation</span>
+                    <span class="number-tile">@secondNumber</span>
+                    <span class="operator equals">=</span>
+                    <span class="answer-slot @(feedback is not null ? (isCorrect ? "answer-correct" : "answer-wrong") : "")">
+                        @(feedback is null ? "?" : (isCorrect ? correctAnswer.ToString() : "?"))
+                    </span>
+                </div>
+
+                <EditForm Model="this" OnValidSubmit="CheckAnswer">
+                    <label class="answer-label" for="answer-input">Viết đáp án của con vào đây</label>
+                    <div class="answer-entry">
+                        <input id="answer-input" class="answer-input" type="number" @bind="answer" @bind:event="oninput" min="0" step="1" placeholder="?" aria-label="Nhập đáp án" disabled="@isCorrect" />
+                        <button class="check-button" type="submit" disabled="@(!answer.HasValue || isCorrect || !historyLoaded)">
+                            Kiểm tra <span aria-hidden="true">→</span>
+                        </button>
+                    </div>
+                </EditForm>
+
+                @if (feedback is not null)
+                {
+                    <div class="feedback @(isCorrect ? "feedback-good" : "feedback-try-again")" role="status" aria-live="polite">
+                        <span class="feedback-emoji" aria-hidden="true">@(isCorrect ? "🎆" : "😢")</span>
+                        <div>
+                            <strong>@(isCorrect ? "Tuyệt vời! Con làm đúng rồi!" : "Chưa đúng rồi, thử lại nhé!")</strong>
+                            <p>@(isCorrect ? "Con giỏi quá! Tiếp tục phát huy nha." : "Bình tĩnh suy nghĩ thêm một chút nào.")</p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="encouragement"><span aria-hidden="true">💡</span> Con có thể làm được, cố lên nhé!</p>
+                }
+
+                <div class="game-actions">
+                    <button class="next-button" type="button" @onclick="NextQuestion">
+                        Câu tiếp theo <span aria-hidden="true">✨</span>
+                    </button>
+                </div>
+            </section>
+
+            <aside class="side-column">
+                <section class="settings-card" aria-labelledby="settings-title">
+                    <div class="card-heading">
+                        <span class="card-icon settings-icon" aria-hidden="true">⚙️</span>
+                        <div>
+                            <h2 id="settings-title">Cài đặt bài tập</h2>
+                            <p>Giới hạn kết quả để luyện vừa sức</p>
+                        </div>
+                    </div>
+
+                    <div class="range-fields">
+                        <div class="range-field">
+                            <label for="max-sum">Tổng cộng tối đa</label>
+                            <input id="max-sum" type="number" @bind="maximumSum" @bind:event="oninput" min="1" max="100" />
+                        </div>
+                        <span class="range-dash" aria-hidden="true">—</span>
+                        <div class="range-field">
+                            <label for="min-difference">Hiệu trừ tối thiểu</label>
+                            <input id="min-difference" type="number" @bind="minimumDifference" @bind:event="oninput" min="0" max="100" />
+                        </div>
+                    </div>
+                    <p class="range-hint">Tổng không vượt quá giới hạn; hiệu luôn từ 0 trở lên.</p>
+                    @if (!string.IsNullOrWhiteSpace(settingsError))
+                    {
+                        <p class="settings-error" role="alert">@settingsError</p>
+                    }
+                    <button class="apply-button" type="button" @onclick="ApplySettings">Áp dụng giới hạn</button>
+                </section>
+
+                <section class="score-card" aria-label="Thành tích">
+                    <span class="score-decoration" aria-hidden="true">⭐</span>
+                    <span class="score-label">SỐ CÂU TRẢ LỜI ĐÚNG</span>
+                    <div class="score-value">@score <span aria-hidden="true">🌟</span></div>
+                    <p>Ngôi sao của con</p>
+                </section>
+            </aside>
+        </div>
+
+        <section class="history-card" aria-labelledby="history-title">
+            <div class="history-heading">
+                <div>
+                    <span class="section-label">HÀNH TRÌNH HỌC TẬP</span>
+                    <h2 id="history-title">Kết quả theo ngày</h2>
+                </div>
+                <span class="history-icon" aria-hidden="true">📅</span>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(historyError))
+            {
+                <p class="history-notice" role="status">@historyError</p>
+            }
+
+            @if (!historyLoaded)
+            {
+                <p class="history-empty">Đang tải kết quả đã lưu...</p>
+            }
+            else if (history.Count == 0)
+            {
+                <p class="history-empty">Chưa có kết quả nào. Con làm thử một phép tính nhé!</p>
+            }
+            else
+            {
+                @foreach (var day in history.GroupBy(result => result.Date).OrderByDescending(group => group.Key))
+                {
+                    var correctCount = day.Count(result => result.IsCorrect);
+                    var incorrectCount = day.Count() - correctCount;
+
+                    <section class="history-day" aria-label="@FormatHistoryDate(day.Key)">
+                        <h3>@FormatHistoryDate(day.Key)</h3>
+                        <div class="history-summary" aria-label="@($"{correctCount} câu đúng, {incorrectCount} câu sai")">
+                            <span class="history-stars">⭐ @correctCount sao</span>
+                            <span class="history-correct-count">@correctCount câu đúng</span>
+                            <span class="history-incorrect-count">@incorrectCount câu sai</span>
+                        </div>
+                        <ul class="history-list">
+                            @foreach (var result in day)
+                            {
+                                <li class="history-item @(result.IsCorrect ? "history-correct" : "history-incorrect")">
+                                    <span class="history-time">@result.Time</span>
+                                    <span class="history-expression">@result.Expression = @result.UserAnswer</span>
+                                    @if (result.IsCorrect)
+                                    {
+                                        <span class="history-result">Đúng! ⭐</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="history-result">Đáp án: @result.CorrectAnswer</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </section>
+                }
+            }
+        </section>
+
+        <footer class="page-footer">
+            <span aria-hidden="true">💛</span> Học toán thật vui — con làm được mà!
+        </footer>
+    </main>
+</div>
+
+@code {
+    private int maximumSum = 10;
+    private int minimumDifference;
+    private int firstNumber;
+    private int secondNumber;
+    private int correctAnswer;
+    private int? answer;
+    private int score;
+    private int questionNumber = 1;
+    private string operation = "+";
+    private string? feedback;
+    private string? settingsError;
+    private string? historyError;
+    private bool isCorrect;
+    private bool historyLoaded;
+    private bool historyCanSave;
+    private readonly List<ExerciseResult> history = [];
+    private readonly Random random = new();
+
+    protected override void OnInitialized()
+    {
+        CreateQuestion();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            var savedHistory = await JS.InvokeAsync<List<ExerciseResult>>("mathHistory.load");
+            history.AddRange(savedHistory);
+            historyCanSave = true;
+        }
+        catch (JSException)
+        {
+            historyCanSave = false;
+            historyError = "Chưa thể đọc lịch sử đã lưu. Kết quả mới chỉ được giữ trong phiên này.";
+        }
+
+        historyLoaded = true;
+        StateHasChanged();
+    }
+
+    private async Task CheckAnswer()
+    {
+        if (!answer.HasValue)
+        {
+            return;
+        }
+
+        isCorrect = answer.Value == correctAnswer;
+        feedback = isCorrect ? "correct" : "wrong";
+        if (isCorrect)
+        {
+            score++;
+        }
+
+        try
+        {
+            var localDateTime = await JS.InvokeAsync<LocalDateTime>("mathHistory.getLocalDateTime");
+            history.Insert(0, new ExerciseResult
+            {
+                Date = localDateTime.Date,
+                Time = localDateTime.Time,
+                Expression = $"{firstNumber} {operation} {secondNumber}",
+                UserAnswer = answer.Value,
+                CorrectAnswer = correctAnswer,
+                IsCorrect = isCorrect
+            });
+
+            if (historyCanSave)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("mathHistory.save", history);
+                    historyError = null;
+                }
+                catch (JSException)
+                {
+                    historyCanSave = false;
+                    historyError = "Không thể lưu lịch sử trên thiết bị này. Kết quả mới chỉ được giữ trong phiên hiện tại.";
+                }
+            }
+        }
+        catch (JSException)
+        {
+            historyCanSave = false;
+            historyError = "Không thể ghi ngày giờ cho kết quả. Vui lòng tải lại trang để thử lại.";
+        }
+
+        await JS.InvokeVoidAsync("mathSounds.play", isCorrect);
+    }
+
+    private void NextQuestion()
+    {
+        questionNumber++;
+        answer = null;
+        feedback = null;
+        isCorrect = false;
+        CreateQuestion();
+    }
+
+    private void ApplySettings()
+    {
+        if (maximumSum < 1 || maximumSum > 100 || minimumDifference < 0 || minimumDifference > maximumSum)
+        {
+            settingsError = "Tổng tối đa cần từ 1 đến 100; hiệu tối thiểu cần từ 0 đến tổng tối đa.";
+            return;
+        }
+
+        settingsError = null;
+        questionNumber = 1;
+        answer = null;
+        feedback = null;
+        isCorrect = false;
+        CreateQuestion();
+    }
+
+    private void CreateQuestion()
+    {
+        operation = random.Next(2) == 0 ? "+" : "−";
+        if (operation == "+")
+        {
+            firstNumber = random.Next(maximumSum + 1);
+            secondNumber = random.Next(maximumSum - firstNumber + 1);
+            correctAnswer = firstNumber + secondNumber;
+            return;
+        }
+
+        firstNumber = random.Next(minimumDifference, maximumSum + 1);
+        secondNumber = random.Next(firstNumber - minimumDifference + 1);
+        correctAnswer = firstNumber - secondNumber;
+    }
+
+    private static string FormatHistoryDate(string date)
+    {
+        return DateTime.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate)
+            ? parsedDate.ToString("dddd, dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+            : date;
+    }
+
+    public sealed class ExerciseResult
+    {
+        public string Date { get; set; } = "";
+        public string Time { get; set; } = "";
+        public string Expression { get; set; } = "";
+        public int UserAnswer { get; set; }
+        public int CorrectAnswer { get; set; }
+        public bool IsCorrect { get; set; }
+    }
+
+    public sealed class LocalDateTime
+    {
+        public string Date { get; set; } = "";
+        public string Time { get; set; } = "";
+    }
+}

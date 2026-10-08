@@ -48,7 +48,7 @@
                 <EditForm Model="this" OnValidSubmit="CheckAnswer">
                     <label class="answer-label" for="answer-input">Viết đáp án của con vào đây</label>
                     <div class="answer-entry">
-                        <input id="answer-input" class="answer-input" type="number" @bind="answer" @bind:event="oninput" min="0" step="1" placeholder="?" aria-label="Nhập đáp án" disabled="@isCorrect" />
+                        <input @ref="answerInput" id="answer-input" class="answer-input" type="number" @bind="answer" @bind:event="oninput" min="0" step="1" placeholder="?" aria-label="Nhập đáp án" aria-keyshortcuts="Enter Space" disabled="@isCorrect" />
                         <button class="check-button" type="submit" disabled="@(!answer.HasValue || isCorrect || !historyLoaded)">
                             Kiểm tra <span aria-hidden="true">→</span>
                         </button>
@@ -71,7 +71,7 @@
                 }
 
                 <div class="game-actions">
-                    <button class="next-button" type="button" @onclick="NextQuestion">
+                    <button @ref="nextButton" class="next-button" type="button" aria-keyshortcuts="Space" @onclick="NextQuestion">
                         Câu tiếp theo <span aria-hidden="true">✨</span>
                     </button>
                 </div>
@@ -195,6 +195,10 @@
     private bool isCorrect;
     private bool historyLoaded;
     private bool historyCanSave;
+    private bool focusAnswerInput = true;
+    private bool focusNextButton;
+    private ElementReference answerInput;
+    private ElementReference nextButton;
     private readonly List<ExerciseResult> history = [];
     private readonly Random random = new();
 
@@ -205,6 +209,17 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (focusNextButton)
+        {
+            focusNextButton = false;
+            await nextButton.FocusAsync();
+        }
+        else if (focusAnswerInput)
+        {
+            focusAnswerInput = false;
+            await answerInput.FocusAsync();
+        }
+
         if (!firstRender)
         {
             return;
@@ -235,6 +250,7 @@
 
         isCorrect = answer.Value == correctAnswer;
         feedback = isCorrect ? "correct" : "wrong";
+        focusNextButton = isCorrect;
         if (isCorrect)
         {
             score++;
@@ -282,6 +298,8 @@
         answer = null;
         feedback = null;
         isCorrect = false;
+        focusAnswerInput = true;
+        focusNextButton = false;
         CreateQuestion();
     }
 
@@ -298,6 +316,8 @@
         answer = null;
         feedback = null;
         isCorrect = false;
+        focusAnswerInput = true;
+        focusNextButton = false;
         CreateQuestion();
     }
 

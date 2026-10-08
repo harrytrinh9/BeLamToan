@@ -1,0 +1,176 @@
+@page "/settings/sound"
+@inject IJSRuntime JS
+
+<PageTitle>Cài đặt âm thanh - Bé Làm Toán</PageTitle>
+
+<div class="app-shell">
+    <header class="topbar">
+        <a class="brand" href="/" aria-label="Bé Làm Toán - Trang chủ">
+            <span class="brand-icon" aria-hidden="true">✿</span>
+            <span>Bé Làm Toán</span>
+        </a>
+        <a class="sound-settings-link" href="/">← Quay lại trò chơi</a>
+    </header>
+
+    <main class="main-content sound-settings-main">
+        <section class="welcome">
+            <div>
+                <p class="eyebrow">CÀI ĐẶT CỦA BẠN</p>
+                <h1>Âm thanh vui nhộn <span aria-hidden="true">🎵</span></h1>
+                <p class="welcome-text">Chọn tiếng reo vui khi đúng và âm thanh vui tai khi cần thử lại.</p>
+            </div>
+            <div class="welcome-mascot" aria-hidden="true">🦊</div>
+        </section>
+
+        <section class="sound-settings-card" aria-labelledby="sound-settings-title">
+            <h2 id="sound-settings-title">Chọn âm thanh trả lời</h2>
+            <p class="sound-settings-intro">Nghe thử từng kiểu rồi lưu lựa chọn của con nhé!</p>
+
+            @if (!settingsLoaded)
+            {
+                <p class="history-empty">Đang tải cài đặt âm thanh...</p>
+            }
+            else
+            {
+                <div class="sound-choice">
+                    <div class="sound-choice-heading">
+                        <div>
+                            <h3><span aria-hidden="true">🎉</span> Khi làm đúng</h3>
+                            <p>Chọn một âm thanh ăn mừng</p>
+                        </div>
+                        <button class="sound-preview-button" type="button" @onclick="() => PreviewSound(true)">▶ Nghe thử</button>
+                    </div>
+                    <label class="sound-select-label" for="correct-sound">Âm thanh đúng</label>
+                    <select id="correct-sound" class="sound-select" @bind="correctSound">
+                        @foreach (var sound in correctSounds)
+                        {
+                            <option value="@sound.Id">@sound.Emoji @sound.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="sound-choice sound-choice-wrong">
+                    <div class="sound-choice-heading">
+                        <div>
+                            <h3><span aria-hidden="true">💫</span> Khi làm chưa đúng</h3>
+                            <p>Âm thanh vui vẻ, nhẹ nhàng để thử lại</p>
+                        </div>
+                        <button class="sound-preview-button" type="button" @onclick="() => PreviewSound(false)">▶ Nghe thử</button>
+                    </div>
+                    <label class="sound-select-label" for="incorrect-sound">Âm thanh thử lại</label>
+                    <select id="incorrect-sound" class="sound-select" @bind="incorrectSound">
+                        @foreach (var sound in incorrectSounds)
+                        {
+                            <option value="@sound.Id">@sound.Emoji @sound.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="sound-settings-actions">
+                    <button class="save-sound-button" type="button" @onclick="SaveSettings">Lưu lựa chọn</button>
+                    @if (!string.IsNullOrWhiteSpace(statusMessage))
+                    {
+                        <p class="sound-settings-status @(statusIsError ? "sound-settings-error" : "")" role="status">@statusMessage</p>
+                    }
+                </div>
+            }
+        </section>
+    </main>
+</div>
+
+@code {
+    private static readonly SoundOption[] correctSounds =
+    [
+        new(1, "Chuông cầu vồng", "🌈"),
+        new(2, "Khúc khải hoàn", "🎺"),
+        new(3, "Nốt nhạc ngôi sao", "⭐"),
+        new(4, "Bong bóng vui", "🫧"),
+        new(5, "Pháo hoa tí hon", "🎆"),
+        new(6, "Gà con gáy vang", "🐥"),
+        new(7, "Robot nhảy múa", "🤖"),
+        new(8, "Chuông leng keng", "🔔"),
+        new(9, "Rương kho báu", "💎"),
+        new(10, "Vũ điệu chiến thắng", "💃")
+    ];
+
+    private static readonly SoundOption[] incorrectSounds =
+    [
+        new(1, "Ếch con nhảy", "🐸"),
+        new(2, "Vịt con lạch bạch", "🦆"),
+        new(3, "Bong bóng xì hơi", "🫧"),
+        new(4, "Khỉ con khúc khích", "🐵"),
+        new(5, "Mèo kêu ngộ nghĩnh", "🐱"),
+        new(6, "Boing nhẹ nhàng", "🌀"),
+        new(7, "Vỗ tay động viên", "👏"),
+        new(8, "Voi con rù rì", "🐘"),
+        new(9, "Đàn gỗ vui tai", "🪇"),
+        new(10, "Thử lại nào", "💛")
+    ];
+
+    private int correctSound = 1;
+    private int incorrectSound = 1;
+    private bool settingsLoaded;
+    private bool statusIsError;
+    private string? statusMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            var settings = await JS.InvokeAsync<SavedSoundSettings>("mathSounds.loadSettings");
+            correctSound = settings.Correct;
+            incorrectSound = settings.Incorrect;
+        }
+        catch (JSException)
+        {
+            statusIsError = true;
+            statusMessage = "Không thể tải cài đặt âm thanh đã lưu trên thiết bị.";
+        }
+
+        settingsLoaded = true;
+        StateHasChanged();
+    }
+
+    private async Task SaveSettings()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("mathSounds.saveSettings", correctSound, incorrectSound);
+            statusIsError = false;
+            statusMessage = "Đã lưu! Lựa chọn sẽ được dùng khi con trả lời.";
+        }
+        catch (JSException)
+        {
+            statusIsError = true;
+            statusMessage = "Không thể lưu cài đặt âm thanh trên thiết bị này.";
+        }
+    }
+
+    private async Task PreviewSound(bool isCorrect)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("mathSounds.preview", isCorrect, isCorrect ? correctSound : incorrectSound);
+            statusIsError = false;
+            statusMessage = "Đang phát âm thanh xem thử.";
+        }
+        catch (JSException)
+        {
+            statusIsError = true;
+            statusMessage = "Không thể phát âm thanh. Hãy kiểm tra âm lượng và thử lại.";
+        }
+    }
+
+    private sealed record SoundOption(int Id, string Name, string Emoji);
+
+    public sealed class SavedSoundSettings
+    {
+        public int Correct { get; set; } = 1;
+        public int Incorrect { get; set; } = 1;
+    }
+}

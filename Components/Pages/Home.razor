@@ -12,7 +12,10 @@
             <span class="brand-icon" aria-hidden="true">✿</span>
             <span>Bé Làm Toán</span>
         </a>
-        <span class="topbar-note"><span aria-hidden="true">🌈</span> Mỗi ngày một chút, giỏi toán thật nhanh!</span>
+        <nav class="topbar-links" aria-label="Điều hướng">
+            <a class="sound-settings-link" href="/settings/sound">🔊 Cài đặt âm thanh</a>
+            <span class="topbar-note"><span aria-hidden="true">🌈</span> Mỗi ngày một chút, giỏi toán thật nhanh!</span>
+        </nav>
     </header>
 
     <main class="main-content">
@@ -49,9 +52,12 @@
                     <label class="answer-label" for="answer-input">Viết đáp án của con vào đây</label>
                     <div class="answer-entry">
                         <input @ref="answerInput" id="answer-input" class="answer-input" type="number" @bind="answer" @bind:event="oninput" min="0" step="1" placeholder="?" aria-label="Nhập đáp án" aria-keyshortcuts="Enter Space" disabled="@isCorrect" />
-                        <button class="check-button" type="submit" disabled="@(!answer.HasValue || isCorrect || !historyLoaded)">
-                            Kiểm tra <span aria-hidden="true">→</span>
-                        </button>
+                        <div class="button-with-hint">
+                            <button class="check-button" type="submit" disabled="@(!answer.HasValue || isCorrect || !historyLoaded)">
+                                Kiểm tra <span aria-hidden="true">→</span>
+                            </button>
+                            <small class="button-hint">Enter để kiểm tra</small>
+                        </div>
                     </div>
                 </EditForm>
 
@@ -70,10 +76,18 @@
                     <p class="encouragement"><span aria-hidden="true">💡</span> Con có thể làm được, cố lên nhé!</p>
                 }
 
+                @if (!string.IsNullOrWhiteSpace(soundError))
+                {
+                    <p class="sound-notice" role="status">@soundError</p>
+                }
+
                 <div class="game-actions">
-                    <button @ref="nextButton" class="next-button" type="button" aria-keyshortcuts="Space" @onclick="NextQuestion">
-                        Câu tiếp theo <span aria-hidden="true">✨</span>
-                    </button>
+                    <div class="button-with-hint">
+                        <button @ref="nextButton" class="next-button" type="button" aria-keyshortcuts="Space" @onclick="NextQuestion">
+                            Câu tiếp theo <span aria-hidden="true">✨</span>
+                        </button>
+                        <small class="button-hint">Space để sang câu</small>
+                    </div>
                 </div>
             </section>
 
@@ -144,13 +158,14 @@
                     var correctCount = day.Count(result => result.IsCorrect);
                     var incorrectCount = day.Count() - correctCount;
 
-                    <section class="history-day" aria-label="@FormatHistoryDate(day.Key)">
-                        <h3>@FormatHistoryDate(day.Key)</h3>
-                        <div class="history-summary" aria-label="@($"{correctCount} câu đúng, {incorrectCount} câu sai")">
-                            <span class="history-stars">⭐ @correctCount sao</span>
-                            <span class="history-correct-count">@correctCount câu đúng</span>
-                            <span class="history-incorrect-count">@incorrectCount câu sai</span>
-                        </div>
+                    <details class="history-day">
+                        <summary class="history-day-toggle" aria-label="@($"{FormatHistoryDate(day.Key)}: {correctCount} câu đúng, {incorrectCount} câu sai. Bấm để xem kết quả.")">
+                            <span class="history-day-title" role="heading" aria-level="3">@FormatHistoryDate(day.Key)</span>
+                            <span class="history-summary" aria-hidden="true">
+                                <span class="history-correct-count">✓ @correctCount</span>
+                                <span class="history-incorrect-count">✕ @incorrectCount</span>
+                            </span>
+                        </summary>
                         <ul class="history-list">
                             @foreach (var result in day)
                             {
@@ -168,7 +183,7 @@
                                 </li>
                             }
                         </ul>
-                    </section>
+                    </details>
                 }
             }
         </section>
@@ -192,6 +207,7 @@
     private string? feedback;
     private string? settingsError;
     private string? historyError;
+    private string? soundError;
     private bool isCorrect;
     private bool historyLoaded;
     private bool historyCanSave;
@@ -289,7 +305,15 @@
             historyError = "Không thể ghi ngày giờ cho kết quả. Vui lòng tải lại trang để thử lại.";
         }
 
-        await JS.InvokeVoidAsync("mathSounds.play", isCorrect);
+        try
+        {
+            await JS.InvokeVoidAsync("mathSounds.play", isCorrect);
+            soundError = null;
+        }
+        catch (JSException)
+        {
+            soundError = "Không thể phát âm thanh. Con vẫn có thể tiếp tục làm bài.";
+        }
     }
 
     private void NextQuestion()

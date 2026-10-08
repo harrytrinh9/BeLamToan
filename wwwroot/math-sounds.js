@@ -1,5 +1,9 @@
 (() => {
     const settingsKey = "beLamToan.soundSettings.v1";
+    const wavSources = {
+        correct: new URL("Sounds/Correct.wav", document.baseURI).toString(),
+        incorrect: new URL("Sounds/Wrong.wav", document.baseURI).toString()
+    };
     const soundPatterns = {
         correct: [
             [[659, 0, 0.15, "sine"], [784, 0.13, 0.15, "sine"], [988, 0.26, 0.25, "sine"]],
@@ -28,9 +32,10 @@
     };
 
     let audioContext;
+    const wavBuffers = { correct: null, incorrect: null };
 
     function validateSoundId(soundId) {
-        if (!Number.isInteger(soundId) || soundId < 1 || soundId > 10) {
+        if (!Number.isInteger(soundId) || soundId < 1 || soundId > 11) {
             throw new RangeError("Lựa chọn âm thanh không hợp lệ.");
         }
     }
@@ -59,6 +64,27 @@
         return audioContext;
     }
 
+    async function getWavBuffer(isCorrect, context) {
+        const soundType = isCorrect ? "correct" : "incorrect";
+        if (!wavBuffers[soundType]) {
+            wavBuffers[soundType] = (async () => {
+                const response = await fetch(wavSources[soundType]);
+                if (!response.ok) {
+                    throw new Error(`Không thể tải âm thanh: ${response.status}`);
+                }
+
+                return context.decodeAudioData(await response.arrayBuffer());
+            })();
+        }
+
+        try {
+            return await wavBuffers[soundType];
+        } catch (error) {
+            wavBuffers[soundType] = null;
+            throw error;
+        }
+    }
+
     function unlockAudio() {
         if (!(window.AudioContext || window.webkitAudioContext)) {
             return;
@@ -78,6 +104,15 @@
         const context = getAudioContext();
         if (context.state === "suspended") {
             await context.resume();
+        }
+
+        if (soundId === 11) {
+            const buffer = await getWavBuffer(isCorrect, context);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            source.start();
+            return;
         }
 
         const pattern = soundPatterns[isCorrect ? "correct" : "incorrect"][soundId - 1];
@@ -105,7 +140,7 @@
     function loadSettings() {
         const stored = localStorage.getItem(settingsKey);
         return stored === null
-            ? { correct: 1, incorrect: 1 }
+            ? { correct: 11, incorrect: 11 }
             : validateSettings(JSON.parse(stored));
     }
 

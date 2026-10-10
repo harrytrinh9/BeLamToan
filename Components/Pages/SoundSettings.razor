@@ -130,16 +130,13 @@
 
     protected override void OnInitialized()
     {
-        var soundsDirectory = Path.Combine(Environment.WebRootPath, "Sounds");
-        if (Directory.Exists(soundsDirectory))
-        {
-            availableSoundFiles = Directory
-                .EnumerateFiles(soundsDirectory)
-                .Where(file => SupportedAudioExtensions.Contains(Path.GetExtension(file)))
-                .Select(file => new FileInfo(file).Name)
-                .Order(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        }
+        availableSoundFiles = Environment.WebRootFileProvider
+            .GetDirectoryContents("Sounds")
+            .Where(file => !file.IsDirectory &&
+                SupportedAudioExtensions.Contains(Path.GetExtension(file.Name)))
+            .Select(file => file.Name)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

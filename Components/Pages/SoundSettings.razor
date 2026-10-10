@@ -1,5 +1,6 @@
 @page "/settings/sound"
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Environment
 
 <PageTitle>Cài đặt âm thanh - Bé Làm Toán</PageTitle>
 
@@ -46,6 +47,10 @@
                         {
                             <option value="@sound.Id">@sound.Emoji @sound.Name</option>
                         }
+                        @foreach (var soundFile in availableSoundFiles)
+                        {
+                            <option value="@GetFileSoundId(soundFile)">🔊 @soundFile</option>
+                        }
                     </select>
                 </div>
 
@@ -63,6 +68,10 @@
                         {
                             <option value="@sound.Id">@sound.Emoji @sound.Name</option>
                         }
+                        @foreach (var soundFile in availableSoundFiles)
+                        {
+                            <option value="@GetFileSoundId(soundFile)">🔊 @soundFile</option>
+                        }
                     </select>
                 </div>
 
@@ -79,6 +88,11 @@
 </div>
 
 @code {
+    private static readonly HashSet<string> SupportedAudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".aac", ".flac", ".m4a", ".mp3", ".oga", ".ogg", ".wav", ".webm"
+    };
+
     private static readonly SoundOption[] correctSounds =
     [
         new(1, "Chuông cầu vồng", "🌈"),
@@ -90,8 +104,7 @@
         new(7, "Robot nhảy múa", "🤖"),
         new(8, "Chuông leng keng", "🔔"),
         new(9, "Rương kho báu", "💎"),
-        new(10, "Vũ điệu chiến thắng", "💃"),
-        new(11, "Âm thanh từ tệp WAV", "🔊")
+        new(10, "Vũ điệu chiến thắng", "💃")
     ];
 
     private static readonly SoundOption[] incorrectSounds =
@@ -105,15 +118,29 @@
         new(7, "Vỗ tay động viên", "👏"),
         new(8, "Voi con rù rì", "🐘"),
         new(9, "Đàn gỗ vui tai", "🪇"),
-        new(10, "Thử lại nào", "💛"),
-        new(11, "Âm thanh từ tệp WAV", "🔊")
+        new(10, "Thử lại nào", "💛")
     ];
 
-    private int correctSound = 11;
-    private int incorrectSound = 11;
+    private string correctSound = "1";
+    private string incorrectSound = "1";
+    private IReadOnlyList<string> availableSoundFiles = [];
     private bool settingsLoaded;
     private bool statusIsError;
     private string? statusMessage;
+
+    protected override void OnInitialized()
+    {
+        var soundsDirectory = Path.Combine(Environment.WebRootPath, "Sounds");
+        if (Directory.Exists(soundsDirectory))
+        {
+            availableSoundFiles = Directory
+                .EnumerateFiles(soundsDirectory)
+                .Where(file => SupportedAudioExtensions.Contains(Path.GetExtension(file)))
+                .Select(file => new FileInfo(file).Name)
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -125,8 +152,8 @@
         try
         {
             var settings = await JS.InvokeAsync<SavedSoundSettings>("mathSounds.loadSettings");
-            correctSound = settings.Correct;
-            incorrectSound = settings.Incorrect;
+            correctSound = GetSoundValue(settings.Correct);
+            incorrectSound = GetSoundValue(settings.Incorrect);
         }
         catch (JSException)
         {
@@ -142,7 +169,7 @@
     {
         try
         {
-            await JS.InvokeVoidAsync("mathSounds.saveSettings", correctSound, incorrectSound);
+            await JS.InvokeVoidAsync("mathSounds.saveSettings", ParseSoundValue(correctSound), ParseSoundValue(incorrectSound));
             statusIsError = false;
             statusMessage = "Đã lưu! Lựa chọn sẽ được dùng khi con trả lời.";
         }
@@ -157,7 +184,8 @@
     {
         try
         {
-            await JS.InvokeVoidAsync("mathSounds.preview", isCorrect, isCorrect ? correctSound : incorrectSound);
+            var sound = isCorrect ? correctSound : incorrectSound;
+            await JS.InvokeVoidAsync("mathSounds.preview", isCorrect, ParseSoundValue(sound));
             statusIsError = false;
             statusMessage = "Đang phát âm thanh xem thử.";
         }
@@ -168,11 +196,26 @@
         }
     }
 
+    private static string GetFileSoundId(string fileName) => $"file:{fileName}";
+
+    private static string GetSoundValue(System.Text.Json.JsonElement value) =>
+        value.ValueKind == System.Text.Json.JsonValueKind.String
+            ? NormalizeSoundValue(value.GetString() ?? "1")
+            : NormalizeSoundValue(value.GetInt32().ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    private static string NormalizeSoundValue(string value) =>
+        value == "11" ? "1" : value;
+
+    private static object ParseSoundValue(string value) =>
+        int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)
+            ? id
+            : value;
+
     private sealed record SoundOption(int Id, string Name, string Emoji);
 
     public sealed class SavedSoundSettings
     {
-        public int Correct { get; set; } = 1;
-        public int Incorrect { get; set; } = 1;
+        public System.Text.Json.JsonElement Correct { get; set; }
+        public System.Text.Json.JsonElement Incorrect { get; set; }
     }
 }

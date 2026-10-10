@@ -837,6 +837,82 @@ button {
     text-align: center;
 }
 
+.music-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(35, 43, 75, .48);
+}
+
+.music-modal {
+    position: relative;
+    width: min(440px, 100%);
+    padding: 32px;
+    border: 1px solid #eceef7;
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 20px 60px rgba(35, 43, 75, .22);
+    text-align: center;
+    animation: pop-in .2s ease-out;
+}
+
+.music-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 15px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: #f1f1ff;
+    color: #5866bf;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.music-modal-icon {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 42px;
+}
+
+.music-modal h2 {
+    margin: 8px 0;
+    color: #2d3853;
+    font-size: 23px;
+    font-weight: 900;
+}
+
+.music-modal-track {
+    margin: 0 0 18px;
+    color: #7d879e;
+    font-size: 13px;
+}
+
+.music-modal audio {
+    display: block;
+    width: 100%;
+    margin-bottom: 18px;
+}
+
+.music-modal-done {
+    min-height: 42px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 11px;
+    background: #5866df;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.music-modal-done:hover {
+    background: #4654cd;
+}
+
 .page-footer {
     margin-top: 26px;
     color: #a0a6b5;

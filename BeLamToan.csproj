@@ -6,11 +6,4 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Include="Sounds\**\*.wav"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
-  </ItemGroup>
-
 </Project>

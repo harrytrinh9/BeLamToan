@@ -1,9 +1,5 @@
 (() => {
     const settingsKey = "beLamToan.soundSettings.v1";
-    const wavSources = {
-        correct: new URL("Sounds/Correct.wav", document.baseURI).toString(),
-        incorrect: new URL("Sounds/Wrong.wav", document.baseURI).toString()
-    };
     const soundPatterns = {
         correct: [
             [[659, 0, 0.15, "sine"], [784, 0.13, 0.15, "sine"], [988, 0.26, 0.25, "sine"]],
@@ -32,12 +28,29 @@
     };
 
     let audioContext;
-    const wavBuffers = { correct: null, incorrect: null };
+    const soundFileBuffers = new Map();
 
     function validateSoundId(soundId) {
-        if (!Number.isInteger(soundId) || soundId < 1 || soundId > 11) {
+        if (!Number.isInteger(soundId) || soundId < 1 || soundId > 10) {
             throw new RangeError("Lựa chọn âm thanh không hợp lệ.");
         }
+    }
+
+    function validateSound(sound) {
+        if (Number.isInteger(sound)) {
+            validateSoundId(sound);
+            return;
+        }
+
+        if (typeof sound === "string" && sound.startsWith("file:")) {
+            const fileName = sound.slice(5);
+            if (fileName.length > 0 && fileName !== "." && fileName !== ".." &&
+                !fileName.includes("/") && !fileName.includes("\\")) {
+                return;
+            }
+        }
+
+        throw new RangeError("Lựa chọn âm thanh không hợp lệ.");
     }
 
     function validateSettings(settings) {
@@ -45,8 +58,8 @@
             throw new TypeError("Cài đặt âm thanh không hợp lệ.");
         }
 
-        validateSoundId(settings.correct);
-        validateSoundId(settings.incorrect);
+        validateSound(settings.correct);
+        validateSound(settings.incorrect);
         return settings;
     }
 
@@ -64,23 +77,23 @@
         return audioContext;
     }
 
-    async function getWavBuffer(isCorrect, context) {
-        const soundType = isCorrect ? "correct" : "incorrect";
-        if (!wavBuffers[soundType]) {
-            wavBuffers[soundType] = (async () => {
-                const response = await fetch(wavSources[soundType]);
+    async function getSoundFileBuffer(fileName, context) {
+        const source = new URL(`Sounds/${encodeURIComponent(fileName)}`, document.baseURI).toString();
+        if (!soundFileBuffers.has(source)) {
+            soundFileBuffers.set(source, (async () => {
+                const response = await fetch(source);
                 if (!response.ok) {
                     throw new Error(`Không thể tải âm thanh: ${response.status}`);
                 }
 
                 return context.decodeAudioData(await response.arrayBuffer());
-            })();
+            })());
         }
 
         try {
-            return await wavBuffers[soundType];
+            return await soundFileBuffers.get(source);
         } catch (error) {
-            wavBuffers[soundType] = null;
+            soundFileBuffers.delete(source);
             throw error;
         }
     }
@@ -100,14 +113,14 @@
     document.addEventListener("keydown", unlockAudio, true);
 
     async function playPattern(isCorrect, soundId) {
-        validateSoundId(soundId);
+        validateSound(soundId);
         const context = getAudioContext();
         if (context.state === "suspended") {
             await context.resume();
         }
 
-        if (soundId === 11) {
-            const buffer = await getWavBuffer(isCorrect, context);
+        if (typeof soundId === "string") {
+            const buffer = await getSoundFileBuffer(soundId.slice(5), context);
             const source = context.createBufferSource();
             source.buffer = buffer;
             source.connect(context.destination);
@@ -139,9 +152,24 @@
 
     function loadSettings() {
         const stored = localStorage.getItem(settingsKey);
-        return stored === null
-            ? { correct: 11, incorrect: 11 }
-            : validateSettings(JSON.parse(stored));
+        if (stored === null) {
+            return { correct: 1, incorrect: 1 };
+        }
+
+        const settings = JSON.parse(stored);
+        if (!settings || typeof settings !== "object") {
+            throw new TypeError("Cài đặt âm thanh không hợp lệ.");
+        }
+
+        for (const soundType of ["correct", "incorrect"]) {
+            if (settings[soundType] === 11 || settings[soundType] === "11") {
+                settings[soundType] = 1;
+            }
+        }
+
+        validateSettings(settings);
+        localStorage.setItem(settingsKey, JSON.stringify(settings));
+        return settings;
     }
 
     window.mathSounds = {

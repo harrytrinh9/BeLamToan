@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Environment
 
 <PageTitle>Bé Làm Toán - Học vui mỗi ngày</PageTitle>
 
@@ -79,6 +80,10 @@
                 @if (!string.IsNullOrWhiteSpace(soundError))
                 {
                     <p class="sound-notice" role="status">@soundError</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(bonusMusicError))
+                {
+                    <p class="sound-notice" role="status">@bonusMusicError</p>
                 }
 
                 <div class="game-actions">
@@ -194,6 +199,23 @@
     </main>
 </div>
 
+@if (showBonusMusic)
+{
+    <div class="music-modal-backdrop">
+        <section class="music-modal" role="dialog" aria-modal="true" aria-labelledby="music-modal-title">
+            <button class="music-modal-close" type="button" aria-label="Đóng trình phát nhạc" @onclick="CloseBonusMusic">×</button>
+            <span class="music-modal-icon" aria-hidden="true">🎉</span>
+            <p class="section-label">PHẦN THƯỞNG ĐẶC BIỆT</p>
+            <h2 id="music-modal-title">10 câu đúng liên tiếp! 🌟</h2>
+            <p class="music-modal-track">@Path.GetFileNameWithoutExtension(selectedBonusMusic)</p>
+            <audio @key="selectedBonusMusic" controls autoplay src="@selectedBonusMusicUrl">
+                Trình duyệt của con không hỗ trợ phát nhạc.
+            </audio>
+            <button class="music-modal-done" type="button" @onclick="CloseBonusMusic">Đóng</button>
+        </section>
+    </div>
+}
+
 @code {
     private int maximumSum = 10;
     private int minimumDifference;
@@ -202,12 +224,19 @@
     private int correctAnswer;
     private int? answer;
     private int score;
+    private int consecutiveCorrectAnswers;
     private int questionNumber = 1;
     private string operation = "+";
     private string? feedback;
     private string? settingsError;
     private string? historyError;
     private string? soundError;
+    private string? bonusMusicError;
+    private string? selectedBonusMusic;
+    private string? selectedBonusMusicUrl => selectedBonusMusic is null
+        ? null
+        : $"BonusMusic/{Uri.EscapeDataString(selectedBonusMusic)}";
+    private bool showBonusMusic;
     private bool isCorrect;
     private bool historyLoaded;
     private bool historyCanSave;
@@ -215,11 +244,18 @@
     private bool focusNextButton;
     private ElementReference answerInput;
     private ElementReference nextButton;
+    private string[] bonusMusicFiles = [];
     private readonly List<ExerciseResult> history = [];
     private readonly Random random = new();
 
     protected override void OnInitialized()
     {
+        bonusMusicFiles = Environment.WebRootFileProvider
+            .GetDirectoryContents("BonusMusic")
+            .Where(file => !file.IsDirectory &&
+                Path.GetExtension(file.Name).Equals(".mp3", StringComparison.OrdinalIgnoreCase))
+            .Select(file => file.Name)
+            .ToArray();
         CreateQuestion();
     }
 
@@ -270,6 +306,25 @@
         if (isCorrect)
         {
             score++;
+            consecutiveCorrectAnswers++;
+
+            if (consecutiveCorrectAnswers % 10 == 0)
+            {
+                if (bonusMusicFiles.Length > 0)
+                {
+                    selectedBonusMusic = bonusMusicFiles[random.Next(bonusMusicFiles.Length)];
+                    showBonusMusic = true;
+                    bonusMusicError = null;
+                }
+                else
+                {
+                    bonusMusicError = "Chưa tìm thấy bài nhạc thưởng trong thư mục BonusMusic.";
+                }
+            }
+        }
+        else
+        {
+            consecutiveCorrectAnswers = 0;
         }
 
         try
@@ -314,6 +369,12 @@
         {
             soundError = "Không thể phát âm thanh. Con vẫn có thể tiếp tục làm bài.";
         }
+    }
+
+    private void CloseBonusMusic()
+    {
+        showBonusMusic = false;
+        selectedBonusMusic = null;
     }
 
     private void NextQuestion()
